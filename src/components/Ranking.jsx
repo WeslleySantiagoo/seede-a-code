@@ -31,9 +31,9 @@ export default function Ranking() {
 
   const getMedalEmoji = (position) => {
     switch(position) {
-      case 1: return '🥇'
-      case 2: return '🥈'
-      case 3: return '🥉'
+      case 1: return <span className="emoji">🥇</span>
+      case 2: return <span className="emoji">🥈</span>
+      case 3: return <span className="emoji">🥉</span>
       default: return `${position}º`
     }
   }
@@ -57,7 +57,7 @@ export default function Ranking() {
   return (
     <div className="bg-white-ice rounded-3xl shadow-2xl p-6">
       <h2 className="text-2xl font-bold text-navy mb-4 text-center flex items-center justify-center gap-2">
-        🏆 Ranking de Jogadores
+        <span className="emoji">🏆</span> Ranking de Jogadores
       </h2>
       
       <div className="space-y-3">
@@ -102,7 +102,7 @@ export default function Ranking() {
                 </div>
 
                 {position <= 3 && (
-                  <div className={`text-4xl ${
+                  <div className={`text-4xl emoji ${
                     position === 1 ? 'animate-bounce' : ''
                   }`}>
                     {position === 1 && '👑'}

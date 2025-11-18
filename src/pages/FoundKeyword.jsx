@@ -155,10 +155,10 @@ export default function FoundKeyword() {
 
   const getSizeEmoji = (size) => {
     switch(size) {
-      case 'small': return '🔥'
-      case 'medium': return '⭐'
-      case 'large': return '✨'
-      default: return '🎯'
+      case 'small': return <span className="emoji">🔥</span>
+      case 'medium': return <span className="emoji">⭐</span>
+      case 'large': return <span className="emoji">✨</span>
+      default: return <span className="emoji">🎯</span>
     }
   }
 

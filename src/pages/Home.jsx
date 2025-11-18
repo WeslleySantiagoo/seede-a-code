@@ -18,11 +18,11 @@ export default function Home() {
         <div className="flex items-center justify-between mb-4">
           <div></div>
           <h1 className="text-4xl font-bold text-navy">
-            🎯 Caça às Palavras
+            <span className="emoji">🎯</span> Caça às Palavras
           </h1>
           <button
             onClick={handleLogout}
-            className="text-gray-500 hover:text-red-500 transition-all text-sm"
+            className="text-gray-500 hover:text-red-500 transition-all text-sm emoji"
             title="Sair"
           >
             🚪
@@ -34,7 +34,7 @@ export default function Home() {
         </p>
         
         <p className="text-base text-gray-600 mb-8">
-          Escaneie os QR codes espalhados pelo evento para encontrar as palavras-chave e ganhar pontos!
+          Escaneie os QR codes espalhados pela Imersão para encontrar as palavras-chave e ganhar pontos!
         </p>
         
         <div className="bg-gradient-to-r from-green-dark to-green-lime rounded-2xl p-6 mb-8">
@@ -56,7 +56,11 @@ export default function Home() {
           </Link>
           
           <p className="text-sm text-gray-600 mt-4">
-            QR codes menores valem mais pontos! 🏆
+            QR codes menores valem mais pontos! <span className="emoji">🏆</span>
+          </p>
+          <p className="text-sm text-gray-600 mt-4">
+            Que comecem as caças!
+
           </p>
         </div>
       </div>

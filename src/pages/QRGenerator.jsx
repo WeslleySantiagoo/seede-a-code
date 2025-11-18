@@ -178,7 +178,7 @@ export default function QRGenerator() {
     <div className="min-h-screen bg-white-ice p-8">
       <div className="max-w-6xl mx-auto">
         <div className="bg-gradient-to-r from-navy to-blue rounded-3xl p-8 mb-8 text-white text-center">
-          <h1 className="text-4xl font-bold mb-4">🎯 Gerador de QR Codes</h1>
+          <h1 className="text-4xl font-bold mb-4"><span className="emoji">🎯</span> Gerador de QR Codes</h1>
           <p className="text-lg">
             Imprima e esconda os QR codes pelo evento!
           </p>

@@ -95,10 +95,10 @@ export default function Dashboard() {
 
   const getSizeEmoji = (size) => {
     switch(size) {
-      case 'small': return '🔥'
-      case 'medium': return '⭐'
-      case 'large': return '✨'
-      default: return '🎯'
+      case 'small': return <span className="emoji">🔥</span>
+      case 'medium': return <span className="emoji">⭐</span>
+      case 'large': return <span className="emoji">✨</span>
+      default: return <span className="emoji">🎯</span>
     }
   }
 
@@ -124,7 +124,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-4">
             <div></div>
             <h1 className="text-3xl font-bold text-navy">
-              🏆 Minha Pontuação
+              <span className="emoji">🏆</span> Minha Pontuação
             </h1>
             <button
               onClick={handleLogout}
@@ -265,7 +265,7 @@ export default function Dashboard() {
         {/* Mensagem de conclusão */}
         {myFoundCount === totalCount && totalCount > 0 && (
           <div className="mt-6 bg-gradient-to-r from-green-dark to-green-lime rounded-2xl p-6 text-center">
-            <p className="text-3xl mb-2">🎊</p>
+            <p className="text-3xl mb-2 emoji">🎊</p>
             <h3 className="text-2xl font-bold text-white mb-2">
               Parabéns!
             </h3>

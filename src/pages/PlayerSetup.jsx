@@ -111,7 +111,7 @@ export default function PlayerSetup() {
         {!showConfirmation ? (
           <>
             <div className="text-center mb-8">
-              <div className="text-6xl mb-4">🎯</div>
+              <div className="text-6xl mb-4 emoji">🎯</div>
               <h1 className="text-4xl font-bold text-navy mb-2">
                 Bem-vindo!
               </h1>
