@@ -1,0 +1,275 @@
+import { QRCodeSVG } from 'qrcode.react'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
+import { jsPDF } from 'jspdf'
+
+export default function QRGenerator() {
+  const navigate = useNavigate()
+  const [keywords, setKeywords] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [generating, setGenerating] = useState(false)
+
+  useEffect(() => {
+    fetchKeywords()
+  }, [])
+
+  const fetchKeywords = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('keywords')
+        .select('*')
+        .order('points', { ascending: false })
+
+      if (error) throw error
+      setKeywords(data)
+    } catch (err) {
+      console.error('Erro ao carregar palavras:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getQRSize = (size) => {
+    switch(size) {
+      case 'small': return 100  // Pequeno
+      case 'medium': return 130 // Médio
+      case 'large': return 175  // Grande
+      default: return 130
+    }
+  }
+
+  const downloadQR = (keywordId, word) => {
+    const canvas = document.getElementById(`qr-${keywordId}`)
+    const pngUrl = canvas
+      .toDataURL('image/png')
+      .replace('image/png', 'image/octet-stream')
+    
+    const downloadLink = document.createElement('a')
+    downloadLink.href = pngUrl
+    downloadLink.download = `QR_${word}_${keywordId}.png`
+    document.body.appendChild(downloadLink)
+    downloadLink.click()
+    document.body.removeChild(downloadLink)
+  }
+
+  const downloadAll = async () => {
+    setGenerating(true)
+    try {
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      })
+
+      const pageWidth = 210 // A4 width em mm
+      const pageHeight = 297 // A4 height em mm
+      const margin = 15
+      const usableWidth = pageWidth - (margin * 2)
+      const usableHeight = pageHeight - (margin * 2)
+
+      let currentY = margin
+      let currentX = margin
+      let maxHeightInRow = 0
+      let isFirstItem = true
+
+      for (let i = 0; i < keywords.length; i++) {
+        const keyword = keywords[i]
+        const qrSize = getQRSize(keyword.size)
+        const qrUrl = `${window.location.origin}/found/${keyword.id}`
+
+        // Converte tamanho em mm
+        const mmSize = qrSize * 0.26458 // Conversão de px para mm (96 DPI)
+        const blockWidth = mmSize + 10 // QR + margem de segurança lateral
+        const blockHeight = mmSize + 18 // QR + margem de segurança vertical (textos)
+
+        // Verifica se precisa quebrar linha
+        if (currentX + blockWidth > pageWidth - margin && !isFirstItem) {
+          currentX = margin
+          currentY += maxHeightInRow + 3
+          maxHeightInRow = 0
+        }
+
+        // Verifica se precisa de nova página
+        if (currentY + blockHeight > pageHeight - margin) {
+          pdf.addPage()
+          currentY = margin
+          currentX = margin
+          maxHeightInRow = 0
+        }
+
+        // Pega o SVG do QR code
+        const svgElement = document.getElementById(`qr-${keyword.id}`)
+        const svgData = new XMLSerializer().serializeToString(svgElement)
+        
+        // Converte SVG para imagem
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+        const img = new Image()
+
+        await new Promise((resolve) => {
+          img.onload = () => {
+            canvas.width = qrSize
+            canvas.height = qrSize
+            
+            ctx.fillStyle = 'white'
+            ctx.fillRect(0, 0, canvas.width, canvas.height)
+            ctx.drawImage(img, 0, 0)
+            
+            const imgData = canvas.toDataURL('image/png')
+            
+            // Centro do bloco
+            const blockCenterX = currentX + (mmSize / 2)
+            
+            // Adiciona palavra (pequena, sutil, acima do QR) - com limite de largura
+            pdf.setFontSize(7)
+            pdf.setFont('helvetica', 'bold')
+            pdf.setTextColor(100)
+            const titleText = `${keyword.word} - ${keyword.points}pts`
+            const titleLines = pdf.splitTextToSize(titleText, mmSize - 2) // 2mm de margem interna
+            pdf.text(titleLines, blockCenterX, currentY + 4, { align: 'center', maxWidth: mmSize - 2 })
+            
+            // Adiciona o QR code
+            const qrY = currentY + 8
+            pdf.addImage(imgData, 'PNG', currentX, qrY, mmSize, mmSize)
+            
+            // Adiciona URL abaixo do QR code (com limite de largura)
+            pdf.setFontSize(5)
+            pdf.setTextColor(80)
+            const urlLines = pdf.splitTextToSize(qrUrl, mmSize - 2) // 2mm de margem interna
+            pdf.text(urlLines, blockCenterX, qrY + mmSize + 2.5, { align: 'center', maxWidth: mmSize - 2 })
+            
+            // Atualiza posições
+            maxHeightInRow = Math.max(maxHeightInRow, blockHeight)
+            currentX += blockWidth
+            isFirstItem = false
+            
+            resolve()
+          }
+          
+          img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)))
+        })
+      }
+
+      // Salva o PDF
+      pdf.save('QR_Codes_Caca_Palavras.pdf')
+      
+      alert(`✅ PDF gerado com sucesso! ${keywords.length} QR codes foram incluídos.`)
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error)
+      alert('❌ Erro ao gerar PDF. Tente novamente!')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue"></div>
+      </div>
+    )
+  }
+
+  // URL base do seu projeto (ALTERAR PARA SUA URL DE PRODUÇÃO)
+  const baseUrl = window.location.origin
+
+  return (
+    <div className="min-h-screen bg-white-ice p-8">
+      <div className="max-w-6xl mx-auto">
+        <div className="bg-gradient-to-r from-navy to-blue rounded-3xl p-8 mb-8 text-white text-center">
+          <h1 className="text-4xl font-bold mb-4">🎯 Gerador de QR Codes</h1>
+          <p className="text-lg">
+            Imprima e esconda os QR codes pelo evento!
+          </p>
+          <button
+            onClick={downloadAll}
+            disabled={generating}
+            className="mt-4 bg-green-lime hover:bg-green-dark text-navy font-bold py-3 px-8 rounded-xl transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {generating ? '⏳ Gerando PDF...' : '📄 Baixar Todos em PDF'}
+          </button>
+        </div>
+
+        {keywords.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-500 text-lg">
+              Nenhuma palavra cadastrada. Configure o banco de dados primeiro!
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {keywords.map((keyword) => {
+              const qrUrl = `${baseUrl}/found/${keyword.id}`
+              const qrSize = getQRSize(keyword.size)
+              
+              return (
+                <div
+                  key={keyword.id}
+                  className="bg-white rounded-2xl shadow-xl p-6 text-center border-4 border-navy"
+                >
+                  <div className="bg-gradient-to-r from-green-dark to-green-lime rounded-xl p-4 mb-4">
+                    <h3 className="text-2xl font-bold text-white mb-1">
+                      {keyword.word}
+                    </h3>
+                    <p className="text-white text-sm">
+                      {keyword.points} pontos • {keyword.size}
+                    </p>
+                  </div>
+
+                  <div className="bg-gray-50 p-4 rounded-xl mb-4 inline-block">
+                    <QRCodeSVG
+                      id={`qr-${keyword.id}`}
+                      value={qrUrl}
+                      size={qrSize}
+                      level="H"
+                      includeMargin={true}
+                    />
+                  </div>
+
+                  <p className="text-xs text-gray-500 mb-3 break-all">
+                    {qrUrl}
+                  </p>
+
+                  <button
+                    onClick={() => downloadQR(keyword.id, keyword.word)}
+                    className="w-full bg-blue hover:bg-navy text-white font-bold py-2 px-4 rounded-lg transition-all"
+                  >
+                    📥 Baixar QR Code
+                  </button>
+
+                  <div className="mt-3 text-sm text-gray-600">
+                    Tamanho: {qrSize}x{qrSize}px
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        <div className="mt-12 bg-yellow-50 border-2 border-yellow-400 rounded-2xl p-6">
+          <h2 className="text-xl font-bold text-yellow-800 mb-3">
+            💡 Dicas para o Evento:
+          </h2>
+          <ul className="space-y-2 text-yellow-900">
+            <li>• <strong>Small (50pts):</strong> Esconda em lugares difíceis ou altos - QR menor (100x100px)</li>
+            <li>• <strong>Medium (30pts):</strong> Lugares de dificuldade média - QR médio (130x130px)</li>
+            <li>• <strong>Large (20pts):</strong> Lugares mais visíveis e fáceis - QR grande (175x175px)</li>
+            <li>• <strong>PDF:</strong> Múltiplos QR codes por página, otimizado para impressão</li>
+            <li>• Imprima em papel de qualidade para melhor leitura</li>
+            <li>• Use plástico ou adesivos para proteger os QR codes</li>
+            <li>• Teste todos os QR codes antes do evento!</li>
+          </ul>
+        </div>
+
+        {/* Botão Voltar */}
+        <button
+          onClick={() => navigate('/')}
+          className="w-full mt-6 bg-white hover:bg-gray-100 text-navy font-bold py-4 px-6 rounded-xl transition-all shadow-lg border-2 border-navy"
+        >
+          ← Voltar ao Início
+        </button>
+      </div>
+    </div>
+  )
+}
