@@ -87,3 +87,4 @@ INSERT INTO keywords (word, points, size) VALUES
   ('DESIGN', 30, 'medium'),
   ('IMPACTO', 20, 'large'),
   ('COMUNIDADE', 40, 'small');
+''

@@ -11,6 +11,8 @@ export default function FoundKeyword() {
   const [error, setError] = useState(null)
   const [confirming, setConfirming] = useState(false)
   const [alreadyFound, setAlreadyFound] = useState(false)
+  const [claimedByOther, setClaimedByOther] = useState(false)
+  const [claimerName, setClaimerName] = useState('')
   const player = getPlayer()
 
   useEffect(() => {
@@ -28,16 +30,26 @@ export default function FoundKeyword() {
       if (error) throw error
       setKeyword(data)
 
-      // Verifica se o jogador já encontrou essa palavra
-      if (player) {
-        const { data: discovery } = await supabase
-          .from('discoveries')
-          .select('*')
-          .eq('player_id', player.id)
-          .eq('keyword_id', keywordId)
-          .single()
-
-        setAlreadyFound(!!discovery)
+      // Verifica se o QR code já foi reivindicado por alguém
+      if (data.claimed_by_player_id) {
+        if (player && data.claimed_by_player_id === player.id) {
+          // O próprio jogador já reivindicou
+          setAlreadyFound(true)
+        } else {
+          // Outro jogador reivindicou
+          setClaimedByOther(true)
+          
+          // Busca o nome do jogador que reivindicou
+          const { data: claimer } = await supabase
+            .from('players')
+            .select('name')
+            .eq('id', data.claimed_by_player_id)
+            .single()
+          
+          if (claimer) {
+            setClaimerName(claimer.name)
+          }
+        }
       }
     } catch (err) {
       setError('Palavra não encontrada!')
@@ -52,6 +64,44 @@ export default function FoundKeyword() {
     
     setConfirming(true)
     try {
+      // Verifica novamente se o QR code já foi reivindicado (race condition)
+      const { data: checkKeyword } = await supabase
+        .from('keywords')
+        .select('claimed_by_player_id')
+        .eq('id', keyword.id)
+        .single()
+
+      if (checkKeyword && checkKeyword.claimed_by_player_id) {
+        if (checkKeyword.claimed_by_player_id === player.id) {
+          setAlreadyFound(true)
+        } else {
+          setClaimedByOther(true)
+          // Busca o nome do outro jogador
+          const { data: claimer } = await supabase
+            .from('players')
+            .select('name')
+            .eq('id', checkKeyword.claimed_by_player_id)
+            .single()
+          if (claimer) setClaimerName(claimer.name)
+        }
+        setConfirming(false)
+        return
+      }
+
+      // Reivindica o QR code (marca como usado por este jogador)
+      const { error: claimError } = await supabase
+        .from('keywords')
+        .update({
+          claimed_by_player_id: player.id,
+          claimed_at: new Date().toISOString(),
+          is_found: true,
+          found_at: new Date().toISOString()
+        })
+        .eq('id', keyword.id)
+        .is('claimed_by_player_id', null) // Só atualiza se ainda não foi reivindicado
+
+      if (claimError) throw claimError
+
       // Registra a descoberta do jogador
       const { error: discoveryError } = await supabase
         .from('discoveries')
@@ -138,10 +188,39 @@ export default function FoundKeyword() {
           <p className="text-lg text-gray-700 mb-2">
             {alreadyFound 
               ? `Você já encontrou a palavra ${keyword.word}!`
-              : `A palavra ${keyword.word} já foi descoberta por você!`
+              : `A palavra ${keyword.word} já foi descoberta!`
             }
           </p>
           <p className="text-sm text-gray-600 mb-6">Continue procurando outras palavras!</p>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="bg-blue hover:bg-navy text-white font-bold py-3 px-6 rounded-xl transition-all"
+          >
+            Ver Dashboard
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (claimedByOther) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-navy via-blue to-navy">
+        <div className="max-w-md w-full bg-white-ice rounded-3xl shadow-2xl p-8 text-center">
+          <div className="text-6xl mb-4">🔒</div>
+          <h1 className="text-3xl font-bold text-navy mb-4">QR Code Já Utilizado!</h1>
+          <p className="text-lg text-gray-700 mb-2">
+            Este QR code já foi escaneado e reivindicado por:
+          </p>
+          <p className="text-2xl font-bold text-blue mb-4">
+            {claimerName || 'Outro jogador'}
+          </p>
+          <p className="text-sm text-gray-600 mb-2">
+            Cada QR code só pode ser usado uma vez!
+          </p>
+          <p className="text-sm text-gray-600 mb-6">
+            Continue procurando outros QR codes pelo evento.
+          </p>
           <button
             onClick={() => navigate('/dashboard')}
             className="bg-blue hover:bg-navy text-white font-bold py-3 px-6 rounded-xl transition-all"

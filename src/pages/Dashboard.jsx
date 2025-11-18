@@ -25,10 +25,13 @@ export default function Dashboard() {
 
   const fetchData = async () => {
     try {
-      // Busca todas as palavras
+      // Busca palavras-chave
       const { data: keywordsData, error: keywordsError } = await supabase
         .from('keywords')
-        .select('*')
+        .select(`
+          *,
+          claimed_by:players!keywords_claimed_by_player_id_fkey(id, name)
+        `)
         .order('points', { ascending: false })
 
       if (keywordsError) throw keywordsError
@@ -208,27 +211,24 @@ export default function Dashboard() {
                             {getSizeEmoji(keyword.size)} {keyword.size} • {keyword.points} pts
                           </p>
                           
-                          {/* Mostra quem encontrou */}
-                          {isFound && keyword.discoveries.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-1">
-                              {keyword.discoveries.map((discovery, idx) => (
-                                <span
-                                  key={idx}
-                                  className={`text-xs px-2 py-1 rounded-full ${
-                                    discovery.player_name === player?.name
-                                      ? 'bg-green-dark text-white font-semibold'
-                                      : 'bg-gray-200 text-gray-700'
-                                  }`}
-                                >
-                                  {discovery.player_name === player?.name ? '🎉 Você' : discovery.player_name}
-                                </span>
-                              ))}
+                          {/* Mostra quem reivindicou o QR code (única pessoa) */}
+                          {keyword.claimed_by && (
+                            <div className="mt-2">
+                              <span
+                                className={`text-xs px-2 py-1 rounded-full inline-flex items-center gap-1 ${
+                                  keyword.claimed_by.name === player?.name
+                                    ? 'bg-green-dark text-white font-semibold'
+                                    : 'bg-blue/20 text-blue font-semibold'
+                                }`}
+                              >
+                                🏆 {keyword.claimed_by.name === player?.name ? 'Você reivindicou!' : `${keyword.claimed_by.name} reivindicou`}
+                              </span>
                             </div>
                           )}
                           
-                          {!isFound && (
+                          {!keyword.claimed_by && (
                             <p className="text-xs text-gray-500 mt-1">
-                              Ainda não foi encontrada por ninguém
+                              🔓 Disponível para ser encontrado
                             </p>
                           )}
                         </div>

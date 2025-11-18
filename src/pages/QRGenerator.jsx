@@ -1,18 +1,83 @@
 import { QRCodeSVG } from 'qrcode.react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { jsPDF } from 'jspdf'
+import QRCodeStyling from 'qr-code-styling'
 
 export default function QRGenerator() {
   const navigate = useNavigate()
   const [keywords, setKeywords] = useState([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
+  const [useCustomStyle, setUseCustomStyle] = useState(true)
+  const qrRefs = useRef({})
 
   useEffect(() => {
     fetchKeywords()
   }, [])
+
+  useEffect(() => {
+    if (keywords.length > 0 && useCustomStyle) {
+      // Timeout para garantir que o DOM foi renderizado
+      setTimeout(() => {
+        generateStyledQRCodes()
+      }, 100)
+    }
+  }, [keywords, useCustomStyle])
+
+  const generateStyledQRCodes = () => {
+    console.log('Gerando QR codes customizados para', keywords.length, 'palavras')
+    
+    keywords.forEach(keyword => {
+      const qrUrl = `${window.location.origin}/found/${keyword.id}`
+      const qrSize = getQRSize(keyword.size)
+      
+      console.log(`Gerando QR para ${keyword.word} (${qrSize}px)`)
+      
+      const qrCode = new QRCodeStyling({
+        width: qrSize,
+        height: qrSize,
+        data: qrUrl,
+        margin: 5,
+        qrOptions: {
+          typeNumber: 0,
+          mode: 'Byte',
+          errorCorrectionLevel: 'M'
+        },
+        imageOptions: {
+          hideBackgroundDots: false,
+          imageSize: 0.2
+        },
+        dotsOptions: {
+          type: 'square',
+          color: '#063472'
+        },
+        backgroundOptions: {
+          color: '#ffffff'
+        },
+        cornersSquareOptions: {
+          type: 'square',
+          color: 'rgb(174, 189, 36)'
+        },
+        cornersDotOptions: {
+          type: 'square',
+          color: 'rgb(174, 189, 36)'
+        },
+        image: '/blue-macaw.svg'
+      })
+
+      const container = document.getElementById(`qr-styled-${keyword.id}`)
+      if (container) {
+        console.log(`Container encontrado para ${keyword.word}`)
+        container.innerHTML = ''
+        qrCode.append(container)
+        qrRefs.current[keyword.id] = qrCode
+      } else {
+        console.error(`Container não encontrado: qr-styled-${keyword.id}`)
+      }
+    })
+  }
 
   const fetchKeywords = async () => {
     try {
@@ -39,18 +104,27 @@ export default function QRGenerator() {
     }
   }
 
-  const downloadQR = (keywordId, word) => {
-    const canvas = document.getElementById(`qr-${keywordId}`)
-    const pngUrl = canvas
-      .toDataURL('image/png')
-      .replace('image/png', 'image/octet-stream')
-    
-    const downloadLink = document.createElement('a')
-    downloadLink.href = pngUrl
-    downloadLink.download = `QR_${word}_${keywordId}.png`
-    document.body.appendChild(downloadLink)
-    downloadLink.click()
-    document.body.removeChild(downloadLink)
+  const downloadQR = async (keywordId, word) => {
+    if (useCustomStyle && qrRefs.current[keywordId]) {
+      // Download QR customizado
+      await qrRefs.current[keywordId].download({
+        name: `QR_${word}_${keywordId}`,
+        extension: 'png'
+      })
+    } else {
+      // Download QR simples
+      const canvas = document.getElementById(`qr-${keywordId}`)
+      const pngUrl = canvas
+        .toDataURL('image/png')
+        .replace('image/png', 'image/octet-stream')
+      
+      const downloadLink = document.createElement('a')
+      downloadLink.href = pngUrl
+      downloadLink.download = `QR_${word}_${keywordId}.png`
+      document.body.appendChild(downloadLink)
+      downloadLink.click()
+      document.body.removeChild(downloadLink)
+    }
   }
 
   const downloadAll = async () => {
@@ -98,57 +172,81 @@ export default function QRGenerator() {
           maxHeightInRow = 0
         }
 
-        // Pega o SVG do QR code
-        const svgElement = document.getElementById(`qr-${keyword.id}`)
-        const svgData = new XMLSerializer().serializeToString(svgElement)
+        let imgData
         
-        // Converte SVG para imagem
-        const canvas = document.createElement('canvas')
-        const ctx = canvas.getContext('2d')
-        const img = new Image()
-
-        await new Promise((resolve) => {
-          img.onload = () => {
-            canvas.width = qrSize
-            canvas.height = qrSize
-            
-            ctx.fillStyle = 'white'
-            ctx.fillRect(0, 0, canvas.width, canvas.height)
-            ctx.drawImage(img, 0, 0)
-            
-            const imgData = canvas.toDataURL('image/png')
-            
-            // Centro do bloco
-            const blockCenterX = currentX + (mmSize / 2)
-            
-            // Adiciona palavra (pequena, sutil, acima do QR) - com limite de largura
-            pdf.setFontSize(7)
-            pdf.setFont('helvetica', 'bold')
-            pdf.setTextColor(100)
-            const titleText = `${keyword.word} - ${keyword.points}pts`
-            const titleLines = pdf.splitTextToSize(titleText, mmSize - 2) // 2mm de margem interna
-            pdf.text(titleLines, blockCenterX, currentY + 4, { align: 'center', maxWidth: mmSize - 2 })
-            
-            // Adiciona o QR code
-            const qrY = currentY + 8
-            pdf.addImage(imgData, 'PNG', currentX, qrY, mmSize, mmSize)
-            
-            // Adiciona URL abaixo do QR code (com limite de largura)
-            pdf.setFontSize(5)
-            pdf.setTextColor(80)
-            const urlLines = pdf.splitTextToSize(qrUrl, mmSize - 2) // 2mm de margem interna
-            pdf.text(urlLines, blockCenterX, qrY + mmSize + 2.5, { align: 'center', maxWidth: mmSize - 2 })
-            
-            // Atualiza posições
-            maxHeightInRow = Math.max(maxHeightInRow, blockHeight)
-            currentX += blockWidth
-            isFirstItem = false
-            
-            resolve()
+        if (useCustomStyle && qrRefs.current[keyword.id]) {
+          // Usa QR customizado
+          try {
+            const blob = await qrRefs.current[keyword.id].getRawData('png')
+            if (blob) {
+              imgData = await new Promise((resolve) => {
+                const reader = new FileReader()
+                reader.onloadend = () => resolve(reader.result)
+                reader.readAsDataURL(blob)
+              })
+            }
+          } catch (error) {
+            console.error('Erro ao gerar QR customizado para PDF:', error)
+            // Fallback para QR simples
+            useCustomStyle = false
+          }
+        }
+        
+        if (!imgData) {
+          // Usa QR simples (SVG)
+          const svgElement = document.getElementById(`qr-${keyword.id}`)
+          if (!svgElement) {
+            console.error(`QR code não encontrado: qr-${keyword.id}`)
+            continue
           }
           
-          img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)))
-        })
+          const svgData = new XMLSerializer().serializeToString(svgElement)
+          
+          const canvas = document.createElement('canvas')
+          const ctx = canvas.getContext('2d')
+          const img = new Image()
+
+          imgData = await new Promise((resolve) => {
+            img.onload = () => {
+              canvas.width = qrSize
+              canvas.height = qrSize
+              
+              ctx.fillStyle = 'white'
+              ctx.fillRect(0, 0, canvas.width, canvas.height)
+              ctx.drawImage(img, 0, 0)
+              
+              resolve(canvas.toDataURL('image/png'))
+            }
+            
+            img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)))
+          })
+        }
+
+        // Centro do bloco
+        const blockCenterX = currentX + (mmSize / 2)
+        
+        // Adiciona palavra (pequena, sutil, acima do QR) - com limite de largura
+        pdf.setFontSize(7)
+        pdf.setFont('helvetica', 'bold')
+        pdf.setTextColor(100)
+        const titleText = `${keyword.word} - ${keyword.points}pts`
+        const titleLines = pdf.splitTextToSize(titleText, mmSize - 2) // 2mm de margem interna
+        pdf.text(titleLines, blockCenterX, currentY + 4, { align: 'center', maxWidth: mmSize - 2 })
+        
+        // Adiciona o QR code
+        const qrY = currentY + 8
+        pdf.addImage(imgData, 'PNG', currentX, qrY, mmSize, mmSize)
+        
+        // Adiciona URL abaixo do QR code (com limite de largura)
+        pdf.setFontSize(5)
+        pdf.setTextColor(80)
+        const urlLines = pdf.splitTextToSize(qrUrl, mmSize - 2) // 2mm de margem interna
+        pdf.text(urlLines, blockCenterX, qrY + mmSize + 2.5, { align: 'center', maxWidth: mmSize - 2 })
+        
+        // Atualiza posições
+        maxHeightInRow = Math.max(maxHeightInRow, blockHeight)
+        currentX += blockWidth
+        isFirstItem = false
       }
 
       // Salva o PDF
@@ -179,9 +277,22 @@ export default function QRGenerator() {
       <div className="max-w-6xl mx-auto">
         <div className="bg-gradient-to-r from-navy to-blue rounded-3xl p-8 mb-8 text-white text-center">
           <h1 className="text-4xl font-bold mb-4"><span className="emoji">🎯</span> Gerador de QR Codes</h1>
-          <p className="text-lg">
+          <p className="text-lg mb-4">
             Imprima e esconda os QR codes pelo evento!
           </p>
+          
+          <div className="flex items-center justify-center gap-4 mb-4">
+            <label className="flex items-center gap-2 cursor-pointer bg-white/20 px-4 py-2 rounded-lg hover:bg-white/30 transition-all">
+              <input
+                type="checkbox"
+                checked={useCustomStyle}
+                onChange={(e) => setUseCustomStyle(e.target.checked)}
+                className="w-5 h-5"
+              />
+              <span className="font-semibold">✨ Usar QR Codes Customizados</span>
+            </label>
+          </div>
+          
           <button
             onClick={downloadAll}
             disabled={generating}
@@ -218,13 +329,29 @@ export default function QRGenerator() {
                   </div>
 
                   <div className="bg-gray-50 p-4 rounded-xl mb-4 inline-block">
-                    <QRCodeSVG
-                      id={`qr-${keyword.id}`}
-                      value={qrUrl}
-                      size={qrSize}
-                      level="H"
-                      includeMargin={true}
-                    />
+                    {useCustomStyle ? (
+                      <>
+                        <div id={`qr-styled-${keyword.id}`} className="flex items-center justify-center min-h-[100px]"></div>
+                        {/* QR simples escondido como fallback */}
+                        <div style={{ display: 'none' }}>
+                          <QRCodeSVG
+                            id={`qr-${keyword.id}`}
+                            value={qrUrl}
+                            size={qrSize}
+                            level="H"
+                            includeMargin={true}
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <QRCodeSVG
+                        id={`qr-${keyword.id}`}
+                        value={qrUrl}
+                        size={qrSize}
+                        level="H"
+                        includeMargin={true}
+                      />
+                    )}
                   </div>
 
                   <p className="text-xs text-gray-500 mb-3 break-all">
@@ -261,6 +388,24 @@ export default function QRGenerator() {
             <li>• Teste todos os QR codes antes do evento!</li>
           </ul>
         </div>
+
+        {useCustomStyle && (
+          <div className="mt-12 bg-gradient-to-r from-blue to-navy text-white rounded-2xl p-6">
+            <h2 className="text-xl font-bold mb-3">
+              ✨ Personalização dos QR Codes
+            </h2>
+            <div className="space-y-2 text-sm">
+              <p>• <strong>Pontos dos quadrados:</strong> Gradiente Navy → Blue</p>
+              <p>• <strong>Cantos quadrados:</strong> Verde escuro (extra-rounded)</p>
+              <p>• <strong>Pontos dos cantos:</strong> Verde limão (dot style)</p>
+              <p>• <strong>Logo central:</strong> blue-macaw.svg</p>
+              <p>• <strong>Tipo de pontos:</strong> Arredondados (rounded)</p>
+            </div>
+            <p className="mt-4 text-xs opacity-80">
+              💡 Para personalizar ainda mais, edite a função <code className="bg-white/20 px-2 py-1 rounded">generateStyledQRCodes()</code> no arquivo QRGenerator.jsx
+            </p>
+          </div>
+        )}
 
         {/* Botão Voltar */}
         <button
