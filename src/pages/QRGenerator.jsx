@@ -188,7 +188,7 @@ export default function QRGenerator() {
           } catch (error) {
             console.error('Erro ao gerar QR customizado para PDF:', error)
             // Fallback para QR simples
-            useCustomStyle = false
+            // useCustomStyle = false
           }
         }
         
