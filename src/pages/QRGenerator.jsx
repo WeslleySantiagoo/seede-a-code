@@ -47,7 +47,7 @@ export default function QRGenerator() {
         },
         imageOptions: {
           hideBackgroundDots: false,
-          imageSize: 0.2
+          imageSize: 0.12
         },
         dotsOptions: {
           type: 'square',
